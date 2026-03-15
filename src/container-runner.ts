@@ -244,11 +244,6 @@ function buildVolumeMounts(
     } catch {
       // ignore
     }
-    mounts.push({
-      hostPath: toHostPath(dirPath),
-      containerPath: `/home/node/.claude/${subdir}`,
-      readonly: false,
-    });
   }
 
   // Per-group IPC namespace: each group gets its own IPC directory
