@@ -182,10 +182,7 @@ function buildVolumeMounts(
     group.folder,
     '.claude.json',
   );
-  const hostDotClaudeJson = path.join(
-    os.homedir(),
-    '.claude.json',
-  );
+  const hostDotClaudeJson = path.join(os.homedir(), '.claude.json');
   if (!fs.existsSync(sessionDotClaudeJson)) {
     let claudeJsonContent: Record<string, unknown> = {
       hasCompletedOnboarding: true,
@@ -216,7 +213,7 @@ function buildVolumeMounts(
   mounts.push({
     hostPath: toHostPath(sessionDotClaudeJson),
     containerPath: '/home/node/.claude.json',
-    readonly: true,
+    readonly: false,
   });
 
   // Per-group IPC namespace: each group gets its own IPC directory
