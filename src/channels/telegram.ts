@@ -16,6 +16,7 @@ export interface TelegramChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
   registeredGroups: () => Record<string, RegisteredGroup>;
+  onRegisterGroup: (jid: string, group: RegisteredGroup) => void;
 }
 
 /**
@@ -60,7 +61,7 @@ export class TelegramChannel implements Channel {
       },
     });
 
-    // Command to get chat ID (useful for registration)
+    // Command to get chat ID and auto-register the chat if not already registered
     this.bot.command('chatid', (ctx) => {
       const chatId = ctx.chat.id;
       const chatType = ctx.chat.type;
@@ -68,11 +69,28 @@ export class TelegramChannel implements Channel {
         chatType === 'private'
           ? ctx.from?.first_name || 'Private'
           : (ctx.chat as any).title || 'Unknown';
+      const chatJid = `tg:${chatId}`;
 
-      ctx.reply(
-        `Chat ID: \`tg:${chatId}\`\nName: ${chatName}\nType: ${chatType}`,
-        { parse_mode: 'Markdown' },
-      );
+      const existing = this.opts.registeredGroups()[chatJid];
+      if (!existing) {
+        const folder = `telegram_${chatId}`;
+        this.opts.onRegisterGroup(chatJid, {
+          name: chatName,
+          folder,
+          trigger: `@${ASSISTANT_NAME}`,
+          added_at: new Date().toISOString(),
+          requiresTrigger: false,
+        });
+        ctx.reply(
+          `Chat ID: \`${chatJid}\`\nName: ${chatName}\nType: ${chatType}\n\n✅ Registered as *${chatName}* (folder: \`${folder}\`)`,
+          { parse_mode: 'Markdown' },
+        );
+      } else {
+        ctx.reply(
+          `Chat ID: \`${chatJid}\`\nName: ${chatName}\nType: ${chatType}\n\nℹ️ Already registered as *${existing.name}*`,
+          { parse_mode: 'Markdown' },
+        );
+      }
     });
 
     // Command to check bot status
