@@ -34,6 +34,7 @@ RUN npm run build
 COPY container/ ./container/
 COPY groups/ ./groups/
 COPY .claude/ ./.claude/
+COPY setup/ ./setup/
 
 # Startup script — builds agent image if missing, then starts NanoClaw
 COPY docker-entrypoint.sh ./

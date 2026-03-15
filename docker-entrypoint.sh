@@ -12,5 +12,14 @@ else
     echo "nanoclaw-agent image found, skipping build."
 fi
 
+# Pre-create persistent data directory structure so volume mounts
+# don't start empty and cause runtime errors on first boot
+mkdir -p \
+    /app/data/sessions \
+    /app/data/env \
+    /app/data/ipc \
+    /app/logs \
+    /app/store
+
 echo "Starting NanoClaw..."
 exec node dist/index.js
