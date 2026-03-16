@@ -491,6 +491,20 @@ async function main(): Promise<void> {
   logger.info('Database initialized');
   loadState();
 
+  // Write initial tasks snapshot for all registered groups
+  const startupTasks = getAllTasks().map((t) => ({
+    id: t.id,
+    groupFolder: t.group_folder,
+    prompt: t.prompt,
+    schedule_type: t.schedule_type,
+    schedule_value: t.schedule_value,
+    status: t.status,
+    next_run: t.next_run,
+  }));
+  for (const [, group] of Object.entries(registeredGroups)) {
+    writeTasksSnapshot(group.folder, group.isMain === true, startupTasks);
+  }
+
   // Start credential proxy (containers route API calls through this)
   const proxyServer = await startCredentialProxy(
     CREDENTIAL_PROXY_PORT,
@@ -597,6 +611,22 @@ async function main(): Promise<void> {
     getAvailableGroups,
     writeGroupsSnapshot: (gf, im, ag, rj) =>
       writeGroupsSnapshot(gf, im, ag, rj),
+    writeTasksSnapshot: (groupFolder, isMain) => {
+      const tasks = getAllTasks();
+      writeTasksSnapshot(
+        groupFolder,
+        isMain,
+        tasks.map((t) => ({
+          id: t.id,
+          groupFolder: t.group_folder,
+          prompt: t.prompt,
+          schedule_type: t.schedule_type,
+          schedule_value: t.schedule_value,
+          status: t.status,
+          next_run: t.next_run,
+        })),
+      );
+    },
   });
   queue.setProcessMessagesFn(processGroupMessages);
   recoverPendingMessages();
