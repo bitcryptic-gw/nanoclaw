@@ -8,8 +8,15 @@ import { readEnvFile } from './env.js';
 // by the credential proxy (credential-proxy.ts), never exposed to containers.
 const envConfig = readEnvFile(['ASSISTANT_NAME', 'ASSISTANT_HAS_OWN_NUMBER']);
 
-export const ASSISTANT_NAME =
-  process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
+export const ASSISTANT_NAME = (() => {
+  const fromTrigger = (process.env.NANOCLAW_TRIGGER || '').replace(/^@/, '');
+  return (
+    fromTrigger ||
+    process.env.ASSISTANT_NAME ||
+    envConfig.ASSISTANT_NAME ||
+    'Andy'
+  );
+})();
 export const ASSISTANT_HAS_OWN_NUMBER =
   (process.env.ASSISTANT_HAS_OWN_NUMBER ||
     envConfig.ASSISTANT_HAS_OWN_NUMBER) === 'true';
