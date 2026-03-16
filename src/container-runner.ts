@@ -252,6 +252,19 @@ function buildVolumeMounts(
   fs.mkdirSync(path.join(groupIpcDir, 'messages'), { recursive: true });
   fs.mkdirSync(path.join(groupIpcDir, 'tasks'), { recursive: true });
   fs.mkdirSync(path.join(groupIpcDir, 'input'), { recursive: true });
+  try {
+    const chownRecursive = (p: string) => {
+      fs.chownSync(p, 1000, 1000);
+      if (fs.statSync(p).isDirectory()) {
+        for (const entry of fs.readdirSync(p)) {
+          chownRecursive(path.join(p, entry));
+        }
+      }
+    };
+    chownRecursive(groupIpcDir);
+  } catch {
+    // ignore
+  }
   mounts.push({
     hostPath: toHostPath(groupIpcDir),
     containerPath: '/workspace/ipc',
