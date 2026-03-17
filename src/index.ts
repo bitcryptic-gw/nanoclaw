@@ -99,6 +99,53 @@ function loadState(): void {
       );
     }
   }
+
+  // Sync trigger and requiresTrigger from env vars if set.
+  // Allows changing trigger/requiresTrigger without re-registering groups.
+  const envTrigger = process.env.NANOCLAW_TRIGGER;
+  const envRequireTriggerRaw = process.env.NANOCLAW_REQUIRE_TRIGGER;
+  const envRequiresTrigger =
+    envRequireTriggerRaw !== undefined
+      ? envRequireTriggerRaw !== 'false'
+      : undefined;
+
+  if (envTrigger !== undefined || envRequiresTrigger !== undefined) {
+    for (const [jid, group] of Object.entries(registeredGroups)) {
+      const triggerChanged =
+        envTrigger !== undefined && group.trigger !== envTrigger;
+      const requiresChanged =
+        envRequiresTrigger !== undefined &&
+        group.requiresTrigger !== envRequiresTrigger;
+
+      if (triggerChanged || requiresChanged) {
+        const updated: RegisteredGroup = {
+          ...group,
+          ...(triggerChanged ? { trigger: envTrigger } : {}),
+          ...(requiresChanged ? { requiresTrigger: envRequiresTrigger } : {}),
+        };
+        registeredGroups[jid] = updated;
+        setRegisteredGroup(jid, updated);
+        logger.info(
+          {
+            jid,
+            name: group.name,
+            ...(triggerChanged
+              ? { trigger: { from: group.trigger, to: envTrigger } }
+              : {}),
+            ...(requiresChanged
+              ? {
+                  requiresTrigger: {
+                    from: group.requiresTrigger,
+                    to: envRequiresTrigger,
+                  },
+                }
+              : {}),
+          },
+          'Updated group trigger config from env',
+        );
+      }
+    }
+  }
 }
 
 function saveState(): void {
