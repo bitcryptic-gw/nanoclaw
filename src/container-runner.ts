@@ -371,6 +371,9 @@ function buildContainerArgs(
   }
 
   // Pass UnraidClaw connection details if configured
+  if (process.env.UNRAIDCLAW_SERVERS) {
+    args.push('-e', `UNRAIDCLAW_SERVERS=${process.env.UNRAIDCLAW_SERVERS}`);
+  }
   if (process.env.UNRAIDCLAW_URL) {
     args.push('-e', `UNRAIDCLAW_URL=${process.env.UNRAIDCLAW_URL}`);
   }
