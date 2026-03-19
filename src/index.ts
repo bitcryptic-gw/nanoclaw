@@ -231,7 +231,10 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   if (!isMainGroup && group.requiresTrigger !== false) {
     const allowlistCfg = loadSenderAllowlist();
     const escapedTrigger = group.trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const groupTriggerPattern = new RegExp(`(^|\\s)${escapedTrigger}(\\s|$)`, 'i');
+    const groupTriggerPattern = new RegExp(
+      `(^|\\s)${escapedTrigger}(\\s|$)`,
+      'i',
+    );
     const hasTrigger = missedMessages.some(
       (m) =>
         groupTriggerPattern.test(m.content.trim()) &&
@@ -460,8 +463,14 @@ async function startMessageLoop(): Promise<void> {
           // context when a trigger eventually arrives.
           if (needsTrigger) {
             const allowlistCfg = loadSenderAllowlist();
-            const escapedTrigger = group.trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const groupTriggerPattern = new RegExp(`(^|\\s)${escapedTrigger}(\\s|$)`, 'i');
+            const escapedTrigger = group.trigger.replace(
+              /[.*+?^${}()|[\]\\]/g,
+              '\\$&',
+            );
+            const groupTriggerPattern = new RegExp(
+              `(^|\\s)${escapedTrigger}(\\s|$)`,
+              'i',
+            );
             const hasTrigger = groupMessages.some(
               (m) =>
                 groupTriggerPattern.test(m.content.trim()) &&

@@ -74,8 +74,7 @@ export class TelegramChannel implements Channel {
       const existing = this.opts.registeredGroups()[chatJid];
       if (!existing) {
         const folder = `telegram_${chatId}`;
-        const trigger =
-          process.env.NANOCLAW_TRIGGER ?? `@${ASSISTANT_NAME}`;
+        const trigger = process.env.NANOCLAW_TRIGGER ?? `@${ASSISTANT_NAME}`;
         const requiresTrigger =
           process.env.NANOCLAW_REQUIRE_TRIGGER !== undefined
             ? process.env.NANOCLAW_REQUIRE_TRIGGER !== 'false'
