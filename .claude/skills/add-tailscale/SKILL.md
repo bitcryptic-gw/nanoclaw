@@ -388,6 +388,29 @@ npm run build
 
 Build must be clean before proceeding. If there are TypeScript errors, read and fix them before continuing.
 
+## Phase 2b: Update container-runner.ts
+
+### Update container-runner.ts
+
+The main NanoClaw process passes environment variables to agent containers explicitly. Open `src/container-runner.ts` and add the following four blocks immediately after the `UNRAIDCLAW_API_KEY` block:
+
+```typescript
+  if (process.env.TAILSCALE_API_KEY) {
+    args.push('-e', `TAILSCALE_API_KEY=${process.env.TAILSCALE_API_KEY}`);
+  }
+  if (process.env.TAILSCALE_CLIENT_ID) {
+    args.push('-e', `TAILSCALE_CLIENT_ID=${process.env.TAILSCALE_CLIENT_ID}`);
+  }
+  if (process.env.TAILSCALE_CLIENT_SECRET) {
+    args.push('-e', `TAILSCALE_CLIENT_SECRET=${process.env.TAILSCALE_CLIENT_SECRET}`);
+  }
+  if (process.env.TAILSCALE_TAILNET) {
+    args.push('-e', `TAILSCALE_TAILNET=${process.env.TAILSCALE_TAILNET}`);
+  }
+```
+
+Without this step the Tailscale MCP server will start but will have no credentials and all tool calls will fail.
+
 ## Phase 3: Configure
 
 ### Configure environment variables
@@ -479,6 +502,10 @@ The key may lack the required capabilities. Personal API keys at https://login.t
 3. Verify the per-group source was updated (see Phase 2)
 4. Confirm the container image was rebuilt with `./container/build.sh`
 5. Try being explicit: "use the tailscale_list_devices tool to show my tailnet"
+
+### Tailscale tools return "credentials not set" but env vars are configured
+
+The TAILSCALE_* vars are set in the NanoClaw container but not being forwarded to agent containers. Verify `src/container-runner.ts` has the four TAILSCALE passthrough blocks from Phase 2b. If missing, add them and rebuild: `npm run build` then rebuild and push the main NanoClaw image.
 
 ### Agent runner won't start after changes
 
