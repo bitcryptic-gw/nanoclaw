@@ -395,6 +395,12 @@ function buildContainerArgs(
   if (process.env.TAILSCALE_TAILNET) {
     args.push('-e', `TAILSCALE_TAILNET=${process.env.TAILSCALE_TAILNET}`);
   }
+  if (process.env.HA_URL) {
+    args.push('-e', `HA_URL=${process.env.HA_URL}`);
+  }
+  if (process.env.HA_TOKEN) {
+    args.push('-e', `HA_TOKEN=${process.env.HA_TOKEN}`);
+  }
 
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
