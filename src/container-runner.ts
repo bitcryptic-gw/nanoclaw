@@ -401,6 +401,9 @@ function buildContainerArgs(
   if (process.env.HA_TOKEN) {
     args.push('-e', `HA_TOKEN=${process.env.HA_TOKEN}`);
   }
+  if (process.env.OLLAMA_URL) {
+    args.push('-e', `OLLAMA_URL=${process.env.OLLAMA_URL}`);
+  }
 
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());

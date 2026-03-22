@@ -336,6 +336,7 @@ async function runQuery(
   unraidclawMcpServerPath: string,
   tailscaleMcpServerPath: string,
   homeassistantMcpServerPath: string,
+  ollamaMcpServerPath: string,
   containerInput: ContainerInput,
   sdkEnv: Record<string, string | undefined>,
   resumeAt?: string,
@@ -413,7 +414,8 @@ async function runQuery(
         'mcp__nanoclaw__*',
         'mcp__unraidclaw__*',
         'mcp__tailscale__*',
-        'mcp__homeassistant__*'
+        'mcp__homeassistant__*',
+        'mcp__ollama__*'
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -454,6 +456,13 @@ async function runQuery(
           env: {
             HA_URL: sdkEnv.HA_URL ?? '',
             HA_TOKEN: sdkEnv.HA_TOKEN ?? '',
+          },
+        },
+        ollama: {
+          command: 'node',
+          args: [ollamaMcpServerPath],
+          env: {
+            OLLAMA_URL: sdkEnv.OLLAMA_URL ?? '',
           },
         },
       },
@@ -523,6 +532,7 @@ async function main(): Promise<void> {
   const unraidclawMcpServerPath = path.join(__dirname, 'unraidclaw-mcp-stdio.js');
   const tailscaleMcpServerPath = path.join(__dirname, 'tailscale-mcp-stdio.js');
   const homeassistantMcpServerPath = path.join(__dirname, 'homeassistant-mcp-stdio.js');
+  const ollamaMcpServerPath = path.join(__dirname, 'ollama-mcp-stdio.js');
 
   let sessionId = containerInput.sessionId;
   fs.mkdirSync(IPC_INPUT_DIR, { recursive: true });
@@ -547,7 +557,7 @@ async function main(): Promise<void> {
     while (true) {
       log(`Starting query (session: ${sessionId || 'new'}, resumeAt: ${resumeAt || 'latest'})...`);
 
-      const queryResult = await runQuery(prompt, sessionId, mcpServerPath, unraidclawMcpServerPath, tailscaleMcpServerPath, homeassistantMcpServerPath, containerInput, sdkEnv, resumeAt);
+      const queryResult = await runQuery(prompt, sessionId, mcpServerPath, unraidclawMcpServerPath, tailscaleMcpServerPath, homeassistantMcpServerPath, ollamaMcpServerPath, containerInput, sdkEnv, resumeAt);
       if (queryResult.newSessionId) {
         sessionId = queryResult.newSessionId;
       }
