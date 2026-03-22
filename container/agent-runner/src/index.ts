@@ -444,10 +444,10 @@ async function runQuery(
           command: 'node',
           args: [tailscaleMcpServerPath],
           env: {
-            TAILSCALE_API_KEY: sdkEnv.TAILSCALE_API_KEY ?? '',
-            TAILSCALE_CLIENT_ID: sdkEnv.TAILSCALE_CLIENT_ID ?? '',
-            TAILSCALE_CLIENT_SECRET: sdkEnv.TAILSCALE_CLIENT_SECRET ?? '',
-            TAILSCALE_TAILNET: sdkEnv.TAILSCALE_TAILNET ?? '-',
+            TS_API_KEY: sdkEnv.TS_API_KEY ?? '',
+            TS_API_CLIENT_ID: sdkEnv.TS_API_CLIENT_ID ?? '',
+            TS_API_CLIENT_SECRET: sdkEnv.TS_API_CLIENT_SECRET ?? '',
+            TS_API_TAILNET: sdkEnv.TS_API_TAILNET ?? '-',
           },
         },
         homeassistant: {

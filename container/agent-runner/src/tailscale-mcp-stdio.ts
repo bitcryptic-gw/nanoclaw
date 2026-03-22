@@ -18,7 +18,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 
 const BASE = 'https://api.tailscale.com';
-const tailnet = encodeURIComponent((process.env.TAILSCALE_TAILNET ?? '-').replace(/^@/, ''));
+const tailnet = encodeURIComponent((process.env.TS_API_TAILNET ?? '-').replace(/^@/, ''));
 
 // --- Auth ---
 
@@ -30,13 +30,13 @@ interface TokenState {
 let tokenState: TokenState | null = null;
 
 async function getAccessToken(): Promise<string> {
-  const apiKey = process.env.TAILSCALE_API_KEY;
+  const apiKey = process.env.TS_API_KEY;
   if (apiKey) return apiKey;
 
-  const clientId = process.env.TAILSCALE_CLIENT_ID;
-  const clientSecret = process.env.TAILSCALE_CLIENT_SECRET;
+  const clientId = process.env.TS_API_CLIENT_ID;
+  const clientSecret = process.env.TS_API_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
-    throw new Error('Either TAILSCALE_API_KEY or TAILSCALE_CLIENT_ID + TAILSCALE_CLIENT_SECRET must be set');
+    throw new Error('Either TS_API_KEY or TS_API_CLIENT_ID + TS_API_CLIENT_SECRET must be set');
   }
 
   // Return cached token if still valid (with 60s buffer)

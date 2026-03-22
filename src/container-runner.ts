@@ -380,20 +380,20 @@ function buildContainerArgs(
   if (process.env.UNRAIDCLAW_API_KEY) {
     args.push('-e', `UNRAIDCLAW_API_KEY=${process.env.UNRAIDCLAW_API_KEY}`);
   }
-  if (process.env.TAILSCALE_API_KEY) {
-    args.push('-e', `TAILSCALE_API_KEY=${process.env.TAILSCALE_API_KEY}`);
+  if (process.env.TS_API_KEY) {
+    args.push('-e', `TS_API_KEY=${process.env.TS_API_KEY}`);
   }
-  if (process.env.TAILSCALE_CLIENT_ID) {
-    args.push('-e', `TAILSCALE_CLIENT_ID=${process.env.TAILSCALE_CLIENT_ID}`);
+  if (process.env.TS_API_CLIENT_ID) {
+    args.push('-e', `TS_API_CLIENT_ID=${process.env.TS_API_CLIENT_ID}`);
   }
-  if (process.env.TAILSCALE_CLIENT_SECRET) {
+  if (process.env.TS_API_CLIENT_SECRET) {
     args.push(
       '-e',
-      `TAILSCALE_CLIENT_SECRET=${process.env.TAILSCALE_CLIENT_SECRET}`,
+      `TS_API_CLIENT_SECRET=${process.env.TS_API_CLIENT_SECRET}`,
     );
   }
-  if (process.env.TAILSCALE_TAILNET) {
-    args.push('-e', `TAILSCALE_TAILNET=${process.env.TAILSCALE_TAILNET}`);
+  if (process.env.TS_API_TAILNET) {
+    args.push('-e', `TS_API_TAILNET=${process.env.TS_API_TAILNET}`);
   }
   if (process.env.HA_URL) {
     args.push('-e', `HA_URL=${process.env.HA_URL}`);
