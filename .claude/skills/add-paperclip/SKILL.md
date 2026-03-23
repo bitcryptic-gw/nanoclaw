@@ -252,7 +252,7 @@ PAPERCLIP_URL=http://paperclip:3100 \
 PAPERCLIP_AGENT_JWT_SECRET=<secret> \
 PAPERCLIP_AGENT_ID=k2 \
 PAPERCLIP_COMPANY_ID=<id> \
-  node dist/paperclip-reporter.js test-run-001 "Task received, starting work."
+  node dist/paperclip-reporter.js test-run-001 TEST-1 "Task received, starting work."
 ```
 
 Expected: JSON response from Paperclip confirming the comment was created.

@@ -187,7 +187,7 @@ export function startPaperclipWebhookServer(
           '',
           body2 || '(no description)',
           '',
-          `To post a comment back: node /app/dist/paperclip-reporter.js ${runId} "<comment>"`,
+          `To post a comment back: node /app/dist/paperclip-reporter.js ${runId} ${issueId} "<comment>"`,
         ];
         const taskText = lines
           .filter((l) => l !== null)

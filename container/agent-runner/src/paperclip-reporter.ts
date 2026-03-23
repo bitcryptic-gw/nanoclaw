@@ -4,7 +4,7 @@
  * Posts a comment back to a Paperclip run via the REST API.
  *
  * Usage:
- *   node /app/dist/paperclip-reporter.js <runId> <comment text...>
+ *   node /app/dist/paperclip-reporter.js <runId> <issueId> <comment text...>
  *
  * Env:
  *   PAPERCLIP_URL              Base URL of Paperclip (default: http://paperclip:3100)
@@ -13,7 +13,7 @@
  *   PAPERCLIP_COMPANY_ID        Company ID claim
  *
  * Example:
- *   node /app/dist/paperclip-reporter.js run_abc123 "Done. Fixed the null pointer on line 42."
+ *   node /app/dist/paperclip-reporter.js run_abc123 ISSUE-42 "Done. Fixed the null pointer on line 42."
  */
 
 import { createHmac } from 'crypto';
@@ -35,11 +35,11 @@ function makeJwt(
   return `${header}.${payload}.${sig}`;
 }
 
-const [, , runId, ...commentParts] = process.argv;
+const [, , runId, issueId, ...commentParts] = process.argv;
 const comment = commentParts.join(' ').trim();
 
-if (!runId || !comment) {
-  console.error('Usage: paperclip-reporter <runId> <comment text>');
+if (!runId || !issueId || !comment) {
+  console.error('Usage: paperclip-reporter <runId> <issueId> <comment text>');
   process.exit(1);
 }
 
@@ -69,7 +69,7 @@ const token = makeJwt(jwtSecret, {
 
 try {
   const res = await fetch(
-    `${BASE}/api/runs/${encodeURIComponent(runId)}/comments`,
+    `${BASE}/api/issues/${encodeURIComponent(issueId)}/comments`,
     {
       method: 'POST',
       headers: {
