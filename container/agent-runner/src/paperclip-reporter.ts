@@ -7,12 +7,33 @@
  *   node /app/dist/paperclip-reporter.js <runId> <comment text...>
  *
  * Env:
- *   PAPERCLIP_URL      Base URL of Paperclip (default: http://paperclip:3100)
- *   PAPERCLIP_API_KEY  API key for authentication
+ *   PAPERCLIP_URL              Base URL of Paperclip (default: http://paperclip:3100)
+ *   PAPERCLIP_AGENT_JWT_SECRET  HS256 secret used to sign request JWTs
+ *   PAPERCLIP_AGENT_ID          Agent ID (JWT sub claim)
+ *   PAPERCLIP_COMPANY_ID        Company ID claim
  *
  * Example:
  *   node /app/dist/paperclip-reporter.js run_abc123 "Done. Fixed the null pointer on line 42."
  */
+
+import { createHmac } from 'crypto';
+
+function base64url(data: Buffer | string): string {
+  const buf = typeof data === 'string' ? Buffer.from(data) : data;
+  return buf.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function makeJwt(
+  secret: string,
+  claims: Record<string, unknown>,
+): string {
+  const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = base64url(JSON.stringify(claims));
+  const sig = base64url(
+    createHmac('sha256', secret).update(`${header}.${payload}`).digest(),
+  );
+  return `${header}.${payload}.${sig}`;
+}
 
 const [, , runId, ...commentParts] = process.argv;
 const comment = commentParts.join(' ').trim();
@@ -23,12 +44,28 @@ if (!runId || !comment) {
 }
 
 const BASE = (process.env.PAPERCLIP_URL ?? 'http://paperclip:3100').replace(/\/$/, '');
-const apiKey = process.env.PAPERCLIP_API_KEY ?? '';
+const jwtSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET ?? '';
+const agentId = process.env.PAPERCLIP_AGENT_ID ?? '';
+const companyId = process.env.PAPERCLIP_COMPANY_ID ?? '';
 
-if (!apiKey) {
-  console.error('Error: PAPERCLIP_API_KEY is not set');
+if (!jwtSecret) {
+  console.error('Error: PAPERCLIP_AGENT_JWT_SECRET is not set');
   process.exit(1);
 }
+if (!agentId) {
+  console.error('Error: PAPERCLIP_AGENT_ID is not set');
+  process.exit(1);
+}
+
+const now = Math.floor(Date.now() / 1000);
+const token = makeJwt(jwtSecret, {
+  sub: agentId,
+  company_id: companyId,
+  adapter_type: 'http',
+  run_id: runId,
+  iat: now,
+  exp: now + 300,
+});
 
 try {
   const res = await fetch(
@@ -36,7 +73,7 @@ try {
     {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ text: comment }),

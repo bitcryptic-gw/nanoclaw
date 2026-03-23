@@ -7,6 +7,8 @@ description: Register NanoClaw as an HTTP adapter agent in Paperclip. Receives i
 
 This skill wires NanoClaw into a Paperclip instance as an HTTP adapter agent. Paperclip sends issue heartbeats to NanoClaw's webhook; NanoClaw routes them to the configured group (typically a dedicated agent like k2) as task messages. The agent can post comments back to Paperclip runs using the included `paperclip-reporter` CLI helper.
 
+Authentication uses HS256 JWTs signed with `PAPERCLIP_AGENT_JWT_SECRET` — the same mechanism Paperclip's own adapter system uses.
+
 ## Phase 1: Pre-flight
 
 ### Check if already applied
@@ -18,14 +20,16 @@ Check if `src/paperclip-webhook.ts` already exists. If it does, skip to Phase 3 
 Use `AskUserQuestion` to ask:
 
 > 1. What is the URL of your Paperclip instance? (default: `http://paperclip:3100`)
-> 2. What is your Paperclip API key?
-> 3. What Bearer token should Paperclip use to authenticate heartbeats to NanoClaw? (choose any secret string — this becomes `PAPERCLIP_WEBHOOK_SECRET`)
-> 4. What is the folder name of the group that should handle Paperclip tasks? (e.g. `k2` — must already be a registered group)
+> 2. What is your Paperclip agent JWT secret? (the HS256 signing secret configured in Paperclip for HTTP adapter agents)
+> 3. What is the agent ID registered in Paperclip? (e.g. `k2`)
+> 4. What is your Paperclip company ID?
+> 5. What Bearer token should Paperclip use to authenticate heartbeats to NanoClaw? (choose any secret string — this becomes `PAPERCLIP_WEBHOOK_SECRET`)
+> 6. What is the folder name of the group that should handle Paperclip tasks? (e.g. `k2` — must already be a registered group)
 
 ### Test Paperclip API connectivity
 
 ```bash
-curl -s -H "Authorization: Bearer <PAPERCLIP_API_KEY>" <PAPERCLIP_URL>/api/issues | head -c 500
+curl -s <PAPERCLIP_URL>/api/issues | head -c 500
 ```
 
 The response must be valid JSON. If connection is refused, verify Paperclip is running and reachable from the NanoClaw host.
@@ -70,14 +74,20 @@ if (process.env.PAPERCLIP_WEBHOOK_SECRET || process.env.PAPERCLIP_GROUP_FOLDER) 
 
 ### Add env passthrough to src/container-runner.ts
 
-Open `src/container-runner.ts` and add the following two blocks after the `OLLAMA_URL` block in `buildContainerArgs()`:
+Open `src/container-runner.ts` and add the following blocks after the `OLLAMA_URL` block in `buildContainerArgs()`:
 
 ```typescript
   if (process.env.PAPERCLIP_URL) {
     args.push('-e', `PAPERCLIP_URL=${process.env.PAPERCLIP_URL}`);
   }
-  if (process.env.PAPERCLIP_API_KEY) {
-    args.push('-e', `PAPERCLIP_API_KEY=${process.env.PAPERCLIP_API_KEY}`);
+  if (process.env.PAPERCLIP_AGENT_JWT_SECRET) {
+    args.push('-e', `PAPERCLIP_AGENT_JWT_SECRET=${process.env.PAPERCLIP_AGENT_JWT_SECRET}`);
+  }
+  if (process.env.PAPERCLIP_AGENT_ID) {
+    args.push('-e', `PAPERCLIP_AGENT_ID=${process.env.PAPERCLIP_AGENT_ID}`);
+  }
+  if (process.env.PAPERCLIP_COMPANY_ID) {
+    args.push('-e', `PAPERCLIP_COMPANY_ID=${process.env.PAPERCLIP_COMPANY_ID}`);
   }
 ```
 
@@ -110,7 +120,7 @@ If this wasn't already done in Phase 2, verify the passthrough blocks are presen
 grep -n "PAPERCLIP" src/container-runner.ts
 ```
 
-Expected output: two lines for `PAPERCLIP_URL` and `PAPERCLIP_API_KEY`.
+Expected output: four lines for `PAPERCLIP_URL`, `PAPERCLIP_AGENT_JWT_SECRET`, `PAPERCLIP_AGENT_ID`, and `PAPERCLIP_COMPANY_ID`.
 
 ## Phase 3: Configure
 
@@ -122,7 +132,9 @@ On standard Linux/macOS deployments: append to `.env` and sync:
 
 ```bash
 PAPERCLIP_URL=http://paperclip:3100
-PAPERCLIP_API_KEY=<your-api-key>
+PAPERCLIP_AGENT_JWT_SECRET=<jwt-signing-secret-from-paperclip>
+PAPERCLIP_AGENT_ID=k2
+PAPERCLIP_COMPANY_ID=<your-company-id>
 PAPERCLIP_WEBHOOK_SECRET=<your-chosen-secret>
 PAPERCLIP_GROUP_FOLDER=k2
 # Optional — default is 3102:
@@ -138,7 +150,9 @@ Also add placeholder entries to `.env.example` if not already present:
 
 ```bash
 PAPERCLIP_URL=
-PAPERCLIP_API_KEY=
+PAPERCLIP_AGENT_JWT_SECRET=
+PAPERCLIP_AGENT_ID=
+PAPERCLIP_COMPANY_ID=
 PAPERCLIP_WEBHOOK_SECRET=
 PAPERCLIP_GROUP_FOLDER=
 PAPERCLIP_WEBHOOK_PORT=
@@ -171,12 +185,14 @@ In Paperclip, create a new HTTP adapter agent with the following settings:
 
 | Field | Value |
 |-------|-------|
-| Agent ID | `k2` (or whatever name matches `PAPERCLIP_GROUP_FOLDER`) |
+| Agent ID | `k2` (must match `PAPERCLIP_AGENT_ID`) |
 | Adapter type | HTTP |
 | Endpoint URL | `http://<nanoclaw-host>:3102/api/paperclip/heartbeat` |
 | Auth header | `Authorization: Bearer <PAPERCLIP_WEBHOOK_SECRET>` |
 
 The exact Paperclip UI path depends on your version — typically: **Settings → Agents → New Agent → HTTP Adapter**.
+
+Note the JWT signing secret shown during agent creation — this becomes `PAPERCLIP_AGENT_JWT_SECRET`.
 
 ### Assign issues to the agent
 
@@ -197,7 +213,7 @@ In Paperclip, assign an issue to `k2`. Paperclip will POST a heartbeat to NanoCl
 
 NanoClaw will:
 1. Authenticate the Bearer token
-2. Fetch full issue details from the Paperclip API (if `PAPERCLIP_API_KEY` is set)
+2. Fetch full issue details from the Paperclip API (authenticated via HS256 JWT)
 3. Format the issue as a task message and store it in the database
 4. Enqueue the k2 group — the agent container starts and processes the task
 
@@ -232,7 +248,10 @@ Look for:
 Inside the k2 container (or verify it works by running the compiled script directly):
 
 ```bash
-PAPERCLIP_URL=http://paperclip:3100 PAPERCLIP_API_KEY=<key> \
+PAPERCLIP_URL=http://paperclip:3100 \
+PAPERCLIP_AGENT_JWT_SECRET=<secret> \
+PAPERCLIP_AGENT_ID=k2 \
+PAPERCLIP_COMPANY_ID=<id> \
   node dist/paperclip-reporter.js test-run-001 "Task received, starting work."
 ```
 
@@ -268,6 +287,14 @@ The value of `PAPERCLIP_GROUP_FOLDER` doesn't match any registered group's folde
 3. `PAPERCLIP_URL` passthrough is present in `src/container-runner.ts` (Phase 2b)
 4. If using `host.docker.internal`, switch to the container name or bridge IP on Linux
 
+### paperclip-reporter fails with JWT error
+
+Paperclip rejected the JWT. Verify:
+1. `PAPERCLIP_AGENT_JWT_SECRET` matches the secret configured for this agent in Paperclip
+2. `PAPERCLIP_AGENT_ID` matches the agent ID registered in Paperclip
+3. `PAPERCLIP_COMPANY_ID` is correct — check Paperclip's admin panel
+4. Container clock isn't drifting — JWTs expire after 5 minutes (`exp: iat + 300`)
+
 ### Webhook server not starting
 
 Check that at least one of `PAPERCLIP_WEBHOOK_SECRET` or `PAPERCLIP_GROUP_FOLDER` is set — the server only starts when either is present. Check logs on startup for `Paperclip webhook server listening`.
@@ -278,7 +305,7 @@ To remove the Paperclip integration:
 
 1. Delete `src/paperclip-webhook.ts` and `container/agent-runner/src/paperclip-reporter.ts`
 2. Remove the `startPaperclipWebhookServer` import and call block from `src/index.ts`
-3. Remove the `PAPERCLIP_URL` and `PAPERCLIP_API_KEY` passthrough blocks from `src/container-runner.ts`
+3. Remove the `PAPERCLIP_URL`, `PAPERCLIP_AGENT_JWT_SECRET`, `PAPERCLIP_AGENT_ID`, and `PAPERCLIP_COMPANY_ID` passthrough blocks from `src/container-runner.ts`
 4. Remove `PAPERCLIP_*` variables from `.env` and sync: `cp .env data/env/env`
 5. Remove the port mapping from the container template (Unraid) or close the firewall port
 6. Rebuild: `npm run build && ./container/build.sh`

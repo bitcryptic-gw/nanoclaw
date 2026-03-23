@@ -4,12 +4,15 @@
  * to the configured agent group as task messages.
  *
  * Config:
- *   PAPERCLIP_URL             Paperclip base URL (default: http://paperclip:3100)
- *   PAPERCLIP_API_KEY         Paperclip API key (for fetching full issue details)
- *   PAPERCLIP_WEBHOOK_SECRET  Bearer token Paperclip sends on every heartbeat
- *   PAPERCLIP_GROUP_FOLDER    Folder name of the group that handles Paperclip tasks
- *   PAPERCLIP_WEBHOOK_PORT    Port to listen on (default: 3102)
+ *   PAPERCLIP_URL              Paperclip base URL (default: http://paperclip:3100)
+ *   PAPERCLIP_AGENT_JWT_SECRET  HS256 secret for signing API request JWTs
+ *   PAPERCLIP_AGENT_ID          Agent ID (JWT sub claim)
+ *   PAPERCLIP_COMPANY_ID        Company ID claim
+ *   PAPERCLIP_WEBHOOK_SECRET   Bearer token Paperclip sends on every heartbeat
+ *   PAPERCLIP_GROUP_FOLDER     Folder name of the group that handles Paperclip tasks
+ *   PAPERCLIP_WEBHOOK_PORT     Port to listen on (default: 3102)
  */
+import { createHmac } from 'crypto';
 import { createServer, Server } from 'http';
 
 import { logger } from './logger.js';
@@ -34,16 +37,45 @@ interface HeartbeatPayload {
   };
 }
 
+function base64url(data: Buffer | string): string {
+  const buf = typeof data === 'string' ? Buffer.from(data) : data;
+  return buf.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function makeJwt(
+  secret: string,
+  claims: Record<string, unknown>,
+): string {
+  const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = base64url(JSON.stringify(claims));
+  const sig = base64url(
+    createHmac('sha256', secret).update(`${header}.${payload}`).digest(),
+  );
+  return `${header}.${payload}.${sig}`;
+}
+
 async function fetchIssue(
   paperclipUrl: string,
-  apiKey: string,
+  jwtSecret: string,
+  agentId: string,
+  companyId: string,
+  runId: string,
   issueId: string,
 ): Promise<Record<string, unknown>> {
+  const now = Math.floor(Date.now() / 1000);
+  const token = makeJwt(jwtSecret, {
+    sub: agentId,
+    company_id: companyId,
+    adapter_type: 'http',
+    run_id: runId,
+    iat: now,
+    exp: now + 300,
+  });
   const res = await fetch(
     `${paperclipUrl}/api/issues/${encodeURIComponent(issueId)}`,
     {
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     },
@@ -58,11 +90,13 @@ export function startPaperclipWebhookServer(
   port: number,
   deps: PaperclipWebhookDeps,
 ): Server {
-  const secret = process.env.PAPERCLIP_WEBHOOK_SECRET;
+  const webhookSecret = process.env.PAPERCLIP_WEBHOOK_SECRET;
   const paperclipUrl = (
     process.env.PAPERCLIP_URL ?? 'http://paperclip:3100'
   ).replace(/\/$/, '');
-  const apiKey = process.env.PAPERCLIP_API_KEY ?? '';
+  const jwtSecret = process.env.PAPERCLIP_AGENT_JWT_SECRET ?? '';
+  const agentId = process.env.PAPERCLIP_AGENT_ID ?? '';
+  const companyId = process.env.PAPERCLIP_COMPANY_ID ?? '';
   const groupFolder = process.env.PAPERCLIP_GROUP_FOLDER ?? '';
 
   const server = createServer((req, res) => {
@@ -73,7 +107,7 @@ export function startPaperclipWebhookServer(
 
     // Authenticate
     const authHeader = req.headers['authorization'] ?? '';
-    if (secret && authHeader !== `Bearer ${secret}`) {
+    if (webhookSecret && authHeader !== `Bearer ${webhookSecret}`) {
       logger.warn('Paperclip heartbeat: unauthorized request');
       res.writeHead(401).end();
       return;
@@ -118,9 +152,16 @@ export function startPaperclipWebhookServer(
 
         // Optionally fetch full issue details from Paperclip API
         let issueData: Record<string, unknown> | null = null;
-        if (context?.issueId && apiKey) {
+        if (context?.issueId && jwtSecret && agentId) {
           try {
-            issueData = await fetchIssue(paperclipUrl, apiKey, context.issueId);
+            issueData = await fetchIssue(
+              paperclipUrl,
+              jwtSecret,
+              agentId,
+              companyId,
+              runId,
+              context.issueId,
+            );
           } catch (e) {
             logger.warn(
               { err: e },

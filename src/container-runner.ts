@@ -404,8 +404,14 @@ function buildContainerArgs(
   if (process.env.PAPERCLIP_URL) {
     args.push('-e', `PAPERCLIP_URL=${process.env.PAPERCLIP_URL}`);
   }
-  if (process.env.PAPERCLIP_API_KEY) {
-    args.push('-e', `PAPERCLIP_API_KEY=${process.env.PAPERCLIP_API_KEY}`);
+  if (process.env.PAPERCLIP_AGENT_JWT_SECRET) {
+    args.push('-e', `PAPERCLIP_AGENT_JWT_SECRET=${process.env.PAPERCLIP_AGENT_JWT_SECRET}`);
+  }
+  if (process.env.PAPERCLIP_AGENT_ID) {
+    args.push('-e', `PAPERCLIP_AGENT_ID=${process.env.PAPERCLIP_AGENT_ID}`);
+  }
+  if (process.env.PAPERCLIP_COMPANY_ID) {
+    args.push('-e', `PAPERCLIP_COMPANY_ID=${process.env.PAPERCLIP_COMPANY_ID}`);
   }
 
   // Runtime-specific args for host gateway resolution
