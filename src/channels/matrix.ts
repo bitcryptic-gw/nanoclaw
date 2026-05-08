@@ -498,6 +498,7 @@ export class MatrixChannel implements Channel {
     this.client.on(
       sdk.MatrixEventEvent.Decrypted,
       (event: sdk.MatrixEvent, err?: Error) => {
+        logger.info({ eventId: event.getId(), type: event.getType(), encrypted: event.isEncrypted() }, 'Decrypted event received');
         if (err) {
           logger.warn(
             { eventId: event.getId(), err },
