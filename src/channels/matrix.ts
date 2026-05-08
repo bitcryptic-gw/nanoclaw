@@ -185,7 +185,7 @@ async function describeMatrixImage(
 
   const mxcMatch = mxcUrl.match(/^mxc:\/\/([^/]+)\/(.+)$/);
   if (!mxcMatch) return '[Image: invalid mxc URL]';
-  const mediaUrl = `${homeserverUrl}/_matrix/media/v3/download/${mxcMatch[1]}/${mxcMatch[2]}`;
+  const mediaUrl = `${homeserverUrl}/_matrix/client/v1/media/download/${mxcMatch[1]}/${mxcMatch[2]}`;
 
   let imageBytes: ArrayBuffer;
   let mimeType = 'image/jpeg';
