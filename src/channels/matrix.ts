@@ -114,6 +114,58 @@ function markdownToHtml(text: string): string {
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
 }
 
+/**
+ * Fetch an mxc:// image from the Matrix homeserver and describe it via Ollama vision.
+ * Returns a human-readable description, or a fallback string on failure.
+ */
+async function describeImageViaMxc(
+  mxcUrl: string,
+  accessToken: string,
+  homeserverUrl: string,
+  ollamaHost: string,
+  ollamaModel: string,
+): Promise<string> {
+  const mxcMatch = mxcUrl.match(/^mxc:\/\/([^/]+)\/(.+)$/);
+  if (!mxcMatch) return '[Image: invalid mxc URL]';
+  const [, server, mediaId] = mxcMatch;
+  const mediaUrl = `${homeserverUrl}/_matrix/media/v3/download/${server}/${mediaId}`;
+
+  let base64Image: string;
+  try {
+    const resp = await fetch(mediaUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!resp.ok) return `[Image: fetch failed ${resp.status}]`;
+    const buffer = await resp.arrayBuffer();
+    if (buffer.byteLength > 10 * 1024 * 1024) return '[Image: too large for vision]';
+    base64Image = Buffer.from(buffer).toString('base64');
+  } catch (err) {
+    return `[Image: fetch error — ${err instanceof Error ? err.message : String(err)}]`;
+  }
+
+  try {
+    const ollamaResp = await fetch(`${ollamaHost}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: ollamaModel,
+        prompt:
+          'Describe this image concisely in 1-3 sentences. Focus on the main subject, any text visible, and relevant context.',
+        images: [base64Image],
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!ollamaResp.ok) return `[Image: Ollama error ${ollamaResp.status}]`;
+    const data = (await ollamaResp.json()) as { response?: string };
+    const description = data.response?.trim() ?? '';
+    return description ? `[Image: ${description}]` : '[Image: no description returned]';
+  } catch (err) {
+    return `[Image: Ollama unavailable — ${err instanceof Error ? err.message : String(err)}]`;
+  }
+}
+
 /** Determine Matrix msgtype from MIME type */
 function msgtypeFromMime(mimeType: string): sdk.MsgType {
   if (mimeType.startsWith('image/')) return sdk.MsgType.Image;
@@ -354,7 +406,7 @@ export class MatrixChannel implements Channel {
         // Skip encrypted events — they'll be handled by the Decrypted listener
         if (event.isEncrypted()) return;
         if (event.getType() !== 'm.room.message') return;
-        this.processMessageEvent(event, room);
+        void this.processMessageEvent(event, room);
       },
     );
 
@@ -374,7 +426,7 @@ export class MatrixChannel implements Channel {
         const room = roomId
           ? (this.client!.getRoom(roomId) ?? undefined)
           : undefined;
-        this.processMessageEvent(event, room);
+        void this.processMessageEvent(event, room);
       },
     );
 
@@ -495,10 +547,10 @@ export class MatrixChannel implements Channel {
     });
   }
 
-  private processMessageEvent(
+  private async processMessageEvent(
     event: sdk.MatrixEvent,
     room: sdk.Room | undefined,
-  ): void {
+  ): Promise<void> {
     const sender = event.getSender();
     if (!sender || sender === this.botUserId) return;
 
@@ -538,7 +590,20 @@ export class MatrixChannel implements Channel {
     if (msgtype === 'm.text') {
       messageContent = content.body || '';
     } else if (msgtype === 'm.image') {
-      messageContent = '[Image]';
+      const mxcUrl = content.url as string | undefined;
+      if (mxcUrl) {
+        const ollamaHost = process.env.OLLAMA_HOST ?? 'http://ollama:11434';
+        const ollamaModel = process.env.OLLAMA_VISION_MODEL ?? 'qwen2.5vl:7b';
+        messageContent = await describeImageViaMxc(
+          mxcUrl,
+          this.accessToken,
+          this.homeserverUrl,
+          ollamaHost,
+          ollamaModel,
+        );
+      } else {
+        messageContent = '[Image: no URL in event]';
+      }
     } else if (msgtype === 'm.video') {
       messageContent = '[Video]';
     } else if (msgtype === 'm.audio') {

@@ -28,6 +28,10 @@ export const ASSISTANT_HAS_OWN_NUMBER =
     envConfig.ASSISTANT_HAS_OWN_NUMBER) === 'true';
 export const OLLAMA_ADMIN_TOOLS =
   (process.env.OLLAMA_ADMIN_TOOLS || envConfig.OLLAMA_ADMIN_TOOLS) === 'true';
+// Vision model used by the Matrix channel to describe inbound images.
+// Defaults to qwen2.5vl:7b — override with OLLAMA_VISION_MODEL env var.
+export const OLLAMA_VISION_MODEL =
+  process.env.OLLAMA_VISION_MODEL ?? 'qwen2.5vl:7b';
 export const POLL_INTERVAL = 2000;
 export const SCHEDULER_POLL_INTERVAL = 60000;
 
