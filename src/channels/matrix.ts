@@ -115,35 +115,109 @@ function markdownToHtml(text: string): string {
 }
 
 /**
- * Fetch an mxc:// image from the Matrix homeserver and describe it via Ollama vision.
- * Returns a human-readable description, or a fallback string on failure.
+ * Decrypt a Matrix E2EE encrypted attachment (attachment v2 / EncryptedFile).
+ * Spec: https://spec.matrix.org/v1.9/client-server-api/#extensions-to-mroommessage-msgtypes
  */
-async function describeImageViaMxc(
-  mxcUrl: string,
-  accessToken: string,
+async function decryptMatrixAttachment(
+  ciphertext: ArrayBuffer,
+  encryptedFile: {
+    key: { k: string };
+    iv: string;
+    hashes: { sha256: string };
+  },
+): Promise<ArrayBuffer> {
+  const keyBytes = Buffer.from(encryptedFile.key.k, 'base64');
+  const ivBytes = Buffer.from(encryptedFile.iv, 'base64');
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'AES-CTR' },
+    false,
+    ['decrypt'],
+  );
+
+  const plaintext = await crypto.subtle.decrypt(
+    { name: 'AES-CTR', counter: ivBytes, length: 64 },
+    cryptoKey,
+    ciphertext,
+  );
+
+  // Verify integrity before passing bytes to Ollama
+  const hashBuffer = await crypto.subtle.digest('SHA-256', plaintext);
+  const hashBase64 = Buffer.from(hashBuffer).toString('base64');
+  const expectedHash = encryptedFile.hashes.sha256;
+  if (hashBase64.replace(/=/g, '') !== expectedHash.replace(/=/g, '')) {
+    throw new Error(
+      `SHA256 mismatch: got ${hashBase64}, expected ${expectedHash}`,
+    );
+  }
+
+  return plaintext;
+}
+
+/**
+ * Fetch and describe a Matrix image attachment via local Ollama vision model.
+ * Handles both E2EE encrypted (content.file) and unencrypted (content.url) media.
+ */
+async function describeMatrixImage(
+  content: Record<string, unknown>,
   homeserverUrl: string,
+  accessToken: string,
   ollamaHost: string,
   ollamaModel: string,
 ): Promise<string> {
+  const SIZE_LIMIT = 10 * 1024 * 1024;
+
+  const encryptedFile = content.file as
+    | {
+        url: string;
+        key: { k: string; alg: string };
+        iv: string;
+        hashes: { sha256: string };
+        v: string;
+      }
+    | undefined;
+  const plainUrl = content.url as string | undefined;
+
+  const mxcUrl = encryptedFile?.url ?? plainUrl;
+  if (!mxcUrl) return '[Image: no URL in event]';
+
   const mxcMatch = mxcUrl.match(/^mxc:\/\/([^/]+)\/(.+)$/);
   if (!mxcMatch) return '[Image: invalid mxc URL]';
-  const [, server, mediaId] = mxcMatch;
-  const mediaUrl = `${homeserverUrl}/_matrix/media/v3/download/${server}/${mediaId}`;
+  const mediaUrl = `${homeserverUrl}/_matrix/media/v3/download/${mxcMatch[1]}/${mxcMatch[2]}`;
 
-  let base64Image: string;
+  let imageBytes: ArrayBuffer;
+  let mimeType = 'image/jpeg';
   try {
     const resp = await fetch(mediaUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(20000),
     });
-    if (!resp.ok) return `[Image: fetch failed ${resp.status}]`;
+    if (!resp.ok) return `[Image: media fetch failed ${resp.status}]`;
+    const ct = resp.headers.get('content-type');
+    if (ct) mimeType = ct.split(';')[0].trim();
     const buffer = await resp.arrayBuffer();
-    if (buffer.byteLength > 10 * 1024 * 1024)
-      return '[Image: too large for vision]';
-    base64Image = Buffer.from(buffer).toString('base64');
+    if (buffer.byteLength > SIZE_LIMIT) return '[Image: file too large for vision]';
+    imageBytes = buffer;
   } catch (err) {
     return `[Image: fetch error — ${err instanceof Error ? err.message : String(err)}]`;
   }
+
+  if (encryptedFile) {
+    try {
+      imageBytes = await decryptMatrixAttachment(imageBytes, encryptedFile);
+      const info = content.info as { mimetype?: string } | undefined;
+      if (info?.mimetype) mimeType = info.mimetype;
+    } catch (err) {
+      return `[Image: decryption failed — ${err instanceof Error ? err.message : String(err)}]`;
+    }
+  }
+
+  // suppress unused-variable warning — mimeType retained for future use
+  void mimeType;
+
+  const base64Image = Buffer.from(imageBytes).toString('base64');
 
   try {
     const ollamaResp = await fetch(`${ollamaHost}/api/generate`, {
@@ -161,9 +235,7 @@ async function describeImageViaMxc(
     if (!ollamaResp.ok) return `[Image: Ollama error ${ollamaResp.status}]`;
     const data = (await ollamaResp.json()) as { response?: string };
     const description = data.response?.trim() ?? '';
-    return description
-      ? `[Image: ${description}]`
-      : '[Image: no description returned]';
+    return description ? `[Image: ${description}]` : '[Image: no description returned]';
   } catch (err) {
     return `[Image: Ollama unavailable — ${err instanceof Error ? err.message : String(err)}]`;
   }
@@ -593,21 +665,15 @@ export class MatrixChannel implements Channel {
     if (msgtype === 'm.text') {
       messageContent = content.body || '';
     } else if (msgtype === 'm.image') {
-      console.log('[vision debug] m.image content:', JSON.stringify(content));
-      const mxcUrl = content.url as string | undefined;
-      if (mxcUrl) {
-        const ollamaHost = process.env.OLLAMA_HOST ?? 'http://ollama:11434';
-        const ollamaModel = process.env.OLLAMA_VISION_MODEL ?? 'qwen2.5vl:7b';
-        messageContent = await describeImageViaMxc(
-          mxcUrl,
-          this.accessToken,
-          this.homeserverUrl,
-          ollamaHost,
-          ollamaModel,
-        );
-      } else {
-        messageContent = '[Image: no URL in event]';
-      }
+      const ollamaHost = process.env.OLLAMA_HOST ?? 'http://ollama:11434';
+      const ollamaModel = process.env.OLLAMA_VISION_MODEL ?? 'qwen2.5vl:7b';
+      messageContent = await describeMatrixImage(
+        content as Record<string, unknown>,
+        this.homeserverUrl,
+        this.accessToken,
+        ollamaHost,
+        ollamaModel,
+      );
     } else if (msgtype === 'm.video') {
       messageContent = '[Video]';
     } else if (msgtype === 'm.audio') {
