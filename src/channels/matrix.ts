@@ -593,6 +593,7 @@ export class MatrixChannel implements Channel {
     if (msgtype === 'm.text') {
       messageContent = content.body || '';
     } else if (msgtype === 'm.image') {
+      console.log('[vision debug] m.image content:', JSON.stringify(content));
       const mxcUrl = content.url as string | undefined;
       if (mxcUrl) {
         const ollamaHost = process.env.OLLAMA_HOST ?? 'http://ollama:11434';
