@@ -198,7 +198,8 @@ async function describeMatrixImage(
     const ct = resp.headers.get('content-type');
     if (ct) mimeType = ct.split(';')[0].trim();
     const buffer = await resp.arrayBuffer();
-    if (buffer.byteLength > SIZE_LIMIT) return '[Image: file too large for vision]';
+    if (buffer.byteLength > SIZE_LIMIT)
+      return '[Image: file too large for vision]';
     imageBytes = buffer;
   } catch (err) {
     return `[Image: fetch error — ${err instanceof Error ? err.message : String(err)}]`;
@@ -235,7 +236,9 @@ async function describeMatrixImage(
     if (!ollamaResp.ok) return `[Image: Ollama error ${ollamaResp.status}]`;
     const data = (await ollamaResp.json()) as { response?: string };
     const description = data.response?.trim() ?? '';
-    return description ? `[Image: ${description}]` : '[Image: no description returned]';
+    return description
+      ? `[Image: ${description}]`
+      : '[Image: no description returned]';
   } catch (err) {
     return `[Image: Ollama unavailable — ${err instanceof Error ? err.message : String(err)}]`;
   }
