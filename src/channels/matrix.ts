@@ -509,6 +509,7 @@ export class MatrixChannel implements Channel {
             eventId: event.getId(),
             type: event.getType(),
             encrypted: event.isEncrypted(),
+            roomId: event.getRoomId(),
           },
           'Decrypted event received',
         );
