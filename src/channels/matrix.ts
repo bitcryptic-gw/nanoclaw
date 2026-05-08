@@ -7,6 +7,12 @@ import path from 'path';
 import 'fake-indexeddb/auto';
 
 import sdk from 'matrix-js-sdk';
+import { CryptoEvent } from 'matrix-js-sdk/lib/crypto-api/CryptoEvent.js';
+import {
+  VerifierEvent,
+  type VerificationRequest,
+  type ShowSasCallbacks,
+} from 'matrix-js-sdk/lib/crypto-api/verification.js';
 
 import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
 import { readEnvFile } from '../env.js';
@@ -514,6 +520,64 @@ export class MatrixChannel implements Channel {
     // would tear down and recreate the OlmMachine, which breaks E2EE
     // (the old WASM worker fires callbacks after being freed).
     this.client!.startClient({ initialSyncLimit: 10 });
+
+    // Auto-accept incoming SAS verification requests so Element trusts k2's device
+    // and shares Megolm session keys. Safe for a self-hosted bot — we control both sides.
+    this.client!.on(
+      CryptoEvent.VerificationRequestReceived,
+      (request: VerificationRequest) => {
+        logger.info(
+          { sender: request.otherUserId, txnId: request.transactionId },
+          'Verification request received — auto-accepting',
+        );
+
+        request
+          .accept()
+          .then(async () => {
+            logger.info(
+              { txnId: request.transactionId },
+              'Verification request accepted — starting SAS',
+            );
+            try {
+              const verifier = await request.startVerification('m.sas.v1');
+
+              verifier.on(
+                VerifierEvent.ShowSas,
+                async (sas: ShowSasCallbacks) => {
+                  logger.info(
+                    {
+                      txnId: request.transactionId,
+                      emoji: sas.sas.emoji?.map((e) => e[0]).join(' '),
+                    },
+                    'SAS emoji — auto-confirming',
+                  );
+                  await sas.confirm();
+                  logger.info(
+                    { txnId: request.transactionId },
+                    'SAS verification confirmed',
+                  );
+                },
+              );
+
+              await verifier.verify();
+              logger.info(
+                { txnId: request.transactionId },
+                'Verification complete — device trusted',
+              );
+
+              await persistCryptoStore(MATRIX_CRYPTO_STORE_PATH);
+            } catch (err: unknown) {
+              logger.warn(
+                { err, txnId: request.transactionId },
+                'SAS verification failed',
+              );
+            }
+          })
+          .catch((err: unknown) => {
+            logger.warn({ err }, 'Failed to accept verification request');
+          });
+      },
+    );
 
     // Wait for initial sync with exponential backoff. Each attempt
     // attaches a fresh one-shot listener. If a PREPARED fires during
