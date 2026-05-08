@@ -269,6 +269,7 @@ export class MatrixChannel implements Channel {
   private botPassword: string | undefined;
   private syncReady = false;
   private cryptoPersistTimer: ReturnType<typeof setInterval> | null = null;
+  private seenEventIds = new Set<string>();
 
   constructor(
     homeserverUrl: string,
@@ -487,8 +488,13 @@ export class MatrixChannel implements Channel {
       ) => {
         // Only process new messages, not historical ones during initial sync
         if (_toStartOfTimeline) return;
-        // Skip encrypted events — they'll be handled by the Decrypted listener
-        if (event.isEncrypted()) return;
+        const eventId = event.getId();
+        if (!eventId || this.seenEventIds.has(eventId)) return;
+        this.seenEventIds.add(eventId);
+        if (this.seenEventIds.size > 10000) {
+          const first = this.seenEventIds.values().next().value;
+          this.seenEventIds.delete(first!);
+        }
         if (event.getType() !== 'm.room.message') return;
         void this.processMessageEvent(event, room);
       },
@@ -512,6 +518,13 @@ export class MatrixChannel implements Channel {
             'Matrix event decryption failed',
           );
           return;
+        }
+        const eventId = event.getId();
+        if (!eventId || this.seenEventIds.has(eventId)) return;
+        this.seenEventIds.add(eventId);
+        if (this.seenEventIds.size > 10000) {
+          const first = this.seenEventIds.values().next().value;
+          this.seenEventIds.delete(first!);
         }
         if (event.getType() !== 'm.room.message') return;
         const roomId = event.getRoomId();
