@@ -138,7 +138,8 @@ async function describeImageViaMxc(
     });
     if (!resp.ok) return `[Image: fetch failed ${resp.status}]`;
     const buffer = await resp.arrayBuffer();
-    if (buffer.byteLength > 10 * 1024 * 1024) return '[Image: too large for vision]';
+    if (buffer.byteLength > 10 * 1024 * 1024)
+      return '[Image: too large for vision]';
     base64Image = Buffer.from(buffer).toString('base64');
   } catch (err) {
     return `[Image: fetch error — ${err instanceof Error ? err.message : String(err)}]`;
@@ -160,7 +161,9 @@ async function describeImageViaMxc(
     if (!ollamaResp.ok) return `[Image: Ollama error ${ollamaResp.status}]`;
     const data = (await ollamaResp.json()) as { response?: string };
     const description = data.response?.trim() ?? '';
-    return description ? `[Image: ${description}]` : '[Image: no description returned]';
+    return description
+      ? `[Image: ${description}]`
+      : '[Image: no description returned]';
   } catch (err) {
     return `[Image: Ollama unavailable — ${err instanceof Error ? err.message : String(err)}]`;
   }
