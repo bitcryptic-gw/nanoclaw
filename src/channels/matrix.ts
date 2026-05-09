@@ -132,8 +132,8 @@ async function decryptMatrixAttachment(
     hashes: { sha256: string };
   },
 ): Promise<ArrayBuffer> {
-  const keyBytes = Buffer.from(encryptedFile.key.k, 'base64');
-  const ivBytes = Buffer.from(encryptedFile.iv, 'base64');
+  const keyBytes = Buffer.from(encryptedFile.key.k, 'base64url');
+  const ivBytes = Buffer.from(encryptedFile.iv, 'base64url');
 
   const cryptoKey = await crypto.subtle.importKey(
     'raw',
