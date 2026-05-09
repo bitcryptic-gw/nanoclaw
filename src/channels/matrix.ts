@@ -141,19 +141,20 @@ function decryptMatrixAttachment(
   console.log('DEBUG ciphertext length:', ciphertext.byteLength);
   const ciphertextBuffer = Buffer.from(ciphertext);
 
-  const decipher = createDecipheriv('aes-256-ctr', keyBytes, ivBytes);
-  const plaintext = Buffer.concat([
-    decipher.update(ciphertextBuffer),
-    decipher.final(),
-  ]);
-
-  const hash = createHash('sha256').update(plaintext).digest();
+  // Verify SHA256 hash of ciphertext BEFORE decryption (Matrix spec)
+  const hash = createHash('sha256').update(ciphertextBuffer).digest();
   const expected = Buffer.from(encryptedFile.hashes.sha256, 'base64');
   if (hash.length !== expected.length || !timingSafeEqual(hash, expected)) {
     throw new Error(
       `SHA256 mismatch: got ${hash.toString('base64')}, expected ${encryptedFile.hashes.sha256}`,
     );
   }
+
+  const decipher = createDecipheriv('aes-256-ctr', keyBytes, ivBytes);
+  const plaintext = Buffer.concat([
+    decipher.update(ciphertextBuffer),
+    decipher.final(),
+  ]);
 
   return plaintext.buffer.slice(
     plaintext.byteOffset,
