@@ -779,6 +779,7 @@ async function main(): Promise<void> {
         }
       }
       storeMessage(msg);
+      queue.enqueueMessageCheck(chatJid);
     },
     onChatMetadata: (
       chatJid: string,
