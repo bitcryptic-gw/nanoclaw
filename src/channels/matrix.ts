@@ -191,6 +191,7 @@ async function describeMatrixImage(
   let imageBytes: ArrayBuffer;
   let mimeType = 'image/jpeg';
   try {
+    logger.info({ mxcUrl, mediaUrl }, 'Fetching Matrix media');
     const resp = await fetch(mediaUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: AbortSignal.timeout(20000),
