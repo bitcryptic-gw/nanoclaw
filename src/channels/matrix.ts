@@ -488,13 +488,8 @@ export class MatrixChannel implements Channel {
       ) => {
         // Only process new messages, not historical ones during initial sync
         if (_toStartOfTimeline) return;
-        const eventId = event.getId();
-        if (!eventId || this.seenEventIds.has(eventId)) return;
-        this.seenEventIds.add(eventId);
-        if (this.seenEventIds.size > 10000) {
-          const first = this.seenEventIds.values().next().value;
-          this.seenEventIds.delete(first!);
-        }
+        // Skip encrypted events — they'll be handled by the Decrypted listener
+        if (event.isEncrypted()) return;
         if (event.getType() !== 'm.room.message') return;
         void this.processMessageEvent(event, room);
       },
