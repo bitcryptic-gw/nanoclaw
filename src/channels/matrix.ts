@@ -144,7 +144,7 @@ async function decryptMatrixAttachment(
   );
 
   const plaintext = await crypto.subtle.decrypt(
-    { name: 'AES-CTR', counter: ivBytes, length: 64 },
+    { name: 'AES-CTR', counter: ivBytes, length: 128 },
     cryptoKey,
     ciphertext,
   );
