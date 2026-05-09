@@ -208,7 +208,7 @@ async function describeMatrixImage(
 
   if (encryptedFile) {
     try {
-      imageBytes = decryptMatrixAttachment(imageBytes, encryptedFile);
+      imageBytes = await decryptMatrixAttachment(imageBytes, encryptedFile);
       const info = content.info as { mimetype?: string } | undefined;
       if (info?.mimetype) mimeType = info.mimetype;
     } catch (err) {
