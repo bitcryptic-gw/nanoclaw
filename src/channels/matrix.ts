@@ -135,10 +135,6 @@ function decryptMatrixAttachment(
 ): ArrayBuffer {
   const keyBytes = Buffer.from(encryptedFile.key.k, 'base64url');
   const ivBytes = Buffer.from(encryptedFile.iv, 'base64url');
-  console.log('DEBUG decrypt key:', encryptedFile.key.k);
-  console.log('DEBUG decrypt iv:', encryptedFile.iv);
-  console.log('DEBUG expected hash:', encryptedFile.hashes.sha256);
-  console.log('DEBUG ciphertext length:', ciphertext.byteLength);
   const ciphertextBuffer = Buffer.from(ciphertext);
 
   // Verify SHA256 hash of ciphertext BEFORE decryption (Matrix spec)
@@ -196,7 +192,7 @@ async function describeMatrixImage(
   let imageBytes: ArrayBuffer;
   let mimeType = 'image/jpeg';
   try {
-    logger.info({ mxcUrl, mediaUrl }, 'Fetching Matrix media');
+    logger.debug({ mxcUrl, mediaUrl }, 'Fetching Matrix media');
     const resp = await fetch(mediaUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
       signal: AbortSignal.timeout(20000),
@@ -213,12 +209,6 @@ async function describeMatrixImage(
   }
 
   if (encryptedFile) {
-    console.log(
-      'DEBUG mediaUrl:',
-      mediaUrl,
-      'key:',
-      encryptedFile.key.k.slice(0, 8),
-    );
     try {
       imageBytes = await decryptMatrixAttachment(imageBytes, encryptedFile);
       const info = content.info as { mimetype?: string } | undefined;
