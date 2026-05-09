@@ -212,7 +212,12 @@ async function describeMatrixImage(
   }
 
   if (encryptedFile) {
-    console.log('DEBUG mediaUrl:', mediaUrl, 'key:', encryptedFile.key.k.slice(0, 8));
+    console.log(
+      'DEBUG mediaUrl:',
+      mediaUrl,
+      'key:',
+      encryptedFile.key.k.slice(0, 8),
+    );
     try {
       imageBytes = await decryptMatrixAttachment(imageBytes, encryptedFile);
       const info = content.info as { mimetype?: string } | undefined;
