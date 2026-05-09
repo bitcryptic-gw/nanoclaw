@@ -135,6 +135,10 @@ function decryptMatrixAttachment(
 ): ArrayBuffer {
   const keyBytes = Buffer.from(encryptedFile.key.k, 'base64url');
   const ivBytes = Buffer.from(encryptedFile.iv, 'base64url');
+  console.log('DEBUG decrypt key:', encryptedFile.key.k);
+  console.log('DEBUG decrypt iv:', encryptedFile.iv);
+  console.log('DEBUG expected hash:', encryptedFile.hashes.sha256);
+  console.log('DEBUG ciphertext length:', ciphertext.byteLength);
   const ciphertextBuffer = Buffer.from(ciphertext);
 
   const decipher = createDecipheriv('aes-256-ctr', keyBytes, ivBytes);
