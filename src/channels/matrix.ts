@@ -1,3 +1,4 @@
+import { createDecipheriv, createHash, timingSafeEqual } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
@@ -124,42 +125,36 @@ function markdownToHtml(text: string): string {
  * Decrypt a Matrix E2EE encrypted attachment (attachment v2 / EncryptedFile).
  * Spec: https://spec.matrix.org/v1.9/client-server-api/#extensions-to-mroommessage-msgtypes
  */
-async function decryptMatrixAttachment(
+function decryptMatrixAttachment(
   ciphertext: ArrayBuffer,
   encryptedFile: {
     key: { k: string };
     iv: string;
     hashes: { sha256: string };
   },
-): Promise<ArrayBuffer> {
+): ArrayBuffer {
   const keyBytes = Buffer.from(encryptedFile.key.k, 'base64url');
   const ivBytes = Buffer.from(encryptedFile.iv, 'base64url');
+  const ciphertextBuffer = Buffer.from(ciphertext);
 
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyBytes,
-    { name: 'AES-CTR' },
-    false,
-    ['decrypt'],
-  );
+  const decipher = createDecipheriv('aes-256-ctr', keyBytes, ivBytes);
+  const plaintext = Buffer.concat([
+    decipher.update(ciphertextBuffer),
+    decipher.final(),
+  ]);
 
-  const plaintext = await crypto.subtle.decrypt(
-    { name: 'AES-CTR', counter: ivBytes, length: 128 },
-    cryptoKey,
-    ciphertext,
-  );
-
-  // Verify integrity before passing bytes to Ollama
-  const hashBuffer = await crypto.subtle.digest('SHA-256', plaintext);
-  const hashBase64 = Buffer.from(hashBuffer).toString('base64');
-  const expectedHash = encryptedFile.hashes.sha256;
-  if (hashBase64.replace(/=/g, '') !== expectedHash.replace(/=/g, '')) {
+  const hash = createHash('sha256').update(plaintext).digest();
+  const expected = Buffer.from(encryptedFile.hashes.sha256, 'base64');
+  if (hash.length !== expected.length || !timingSafeEqual(hash, expected)) {
     throw new Error(
-      `SHA256 mismatch: got ${hashBase64}, expected ${expectedHash}`,
+      `SHA256 mismatch: got ${hash.toString('base64')}, expected ${encryptedFile.hashes.sha256}`,
     );
   }
 
-  return plaintext;
+  return plaintext.buffer.slice(
+    plaintext.byteOffset,
+    plaintext.byteOffset + plaintext.byteLength,
+  );
 }
 
 /**
@@ -213,7 +208,7 @@ async function describeMatrixImage(
 
   if (encryptedFile) {
     try {
-      imageBytes = await decryptMatrixAttachment(imageBytes, encryptedFile);
+      imageBytes = decryptMatrixAttachment(imageBytes, encryptedFile);
       const info = content.info as { mimetype?: string } | undefined;
       if (info?.mimetype) mimeType = info.mimetype;
     } catch (err) {
